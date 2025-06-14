@@ -1,9 +1,12 @@
 import Search from './assets/components/Search'
 import './App.css'
 import { useEffect, useState } from 'react'
+import {useDebounce} from 'react-use'
 import MovieCard from './assets/components/MovieCard';
 import Spinner from './assets/components/Spinner';
-const API_BASE_URL = 'https://api.themoviedb.org/3/discover/movie';
+
+import {updateSearchCount} from './appwrite';
+const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
 const API_OPTIONS = {
@@ -21,12 +24,14 @@ function App() {
   const [moiveList, setMovieList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState();
 
-  const fetchMovies = async () => {
+  useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm])
+  const fetchMovies = async (query = '') => {
     setIsLoading(true);
     setErrorMessage('');
     try{
-      const endpoint = `${API_BASE_URL}?sort_by=popularity.desc`;
+      const endpoint = query ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`: `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
       const response = await fetch(endpoint, API_OPTIONS);
       setIsLoading(false)
       if(!response.ok){
@@ -41,6 +46,10 @@ function App() {
       }
       setMovieList(data.results || [])
       console.log(data)
+      if (query && data.results.length > 0){
+        updateSearchCount(query, data.results[0])
+      }
+      
     }catch(error){
       console.log(`Error fetching movies ${error}`)
       setErrorMessage('error fetching movies')
@@ -49,8 +58,8 @@ function App() {
     }
   }
   useEffect(() => {
-    fetchMovies();
-  }, []);
+    fetchMovies(searchTerm);
+  }, [debouncedSearchTerm]);
 
   return (
     <main>
@@ -64,7 +73,7 @@ function App() {
             <section className='all-movies'>
               <h2 className='mt-[40px]'>All Movies</h2>
               { isLoading ? 
-              ( <p className='text-white>'> <Spinner/></p>): errorMessage ? (
+              (  <Spinner/>): errorMessage ? (
                 <p className='text-red-900>'> {errorMessage}</p> 
               ): (
                 <ul>
